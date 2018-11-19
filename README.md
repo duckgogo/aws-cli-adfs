@@ -42,7 +42,7 @@ aws-adfs profile update PROFILE-NAME1 PROFILE-NAME2 ...
 ```shell
 aws-adfs profile default PROFILE_NAME
 ```
-Once the default profile is set, you don't have to specify PROFILE-NAME in 'show', 'update', 'delete' subcomands and 'login' command
+Once the default profile is set, you don't have to specify PROFILE-NAME in 'show', 'update', 'delete', 'expire-at' subcomands and 'login' command
 
 #### Check the default profile
 ```shell
