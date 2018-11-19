@@ -323,6 +323,6 @@ def login(
             click.echo('The roles you are allowed to assume are:')
             for aws_role in aws_roles:
                 click.echo('  -  ' + aws_role)
-            result['result'] = 'succeed'
+        result['result'] = 'succeed'
     finally:
         logger.info(json.dumps(result))
