@@ -12,6 +12,11 @@ pip install .
 
 ## Usage
 
+### Display the version of this tool
+```shell
+aws-adfs version
+```
+
 #### Create a profile
 
 ```shell
