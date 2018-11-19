@@ -54,5 +54,10 @@ aws-adfs profile delete PROFILE-NAME1 PROFILE-NAME2 ...
 aws-adfs login PROFILE-NAME1 PROFILE-NAME2 ...
 ```
 
+### Check the expire time of the login profile(s)
+```shell
+aws-adfs profile expire-at PROFILE-NAME1 PROFILE-NAME2 ...
+```
+
 ## Log path
 ~/.aws/aws-adfs.log
