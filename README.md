@@ -12,7 +12,7 @@ pip install .
 
 ## Usage
 
-### Display the version of this tool
+#### Display the version of this tool
 ```shell
 aws-adfs version
 ```
