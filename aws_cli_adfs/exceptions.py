@@ -4,5 +4,5 @@ class WrongPasswordException(Exception):
 
 
 class WrongMFACodeException(Exception):
-    """Wrong MFA password"""
+    """Wrong MFA code"""
     pass
