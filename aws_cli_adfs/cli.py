@@ -1,6 +1,7 @@
 import click
 import sys
 
+from .__init__ import __version__
 from .constants import *
 from .login import login
 from .utils import *
@@ -8,8 +9,8 @@ from .utils import *
 from .constants import DEFAULT_IDP_SESSION_DURATION, DEFAULT_OUTPUT_FORMAT
 
 
-# the cli is consist of two groups:
-# profile management  part and login part
+# the cli is consist of three groups:
+# profile management  part, login part and version part
 
 
 # profile management part
@@ -383,7 +384,19 @@ def _login(save_password, profile_names):
     _ls_profiles_if_wrong_names(wrong_profile_names)
 
 
-cli = click.CommandCollection(sources=[profile_cli, login_cli])
+@click.group()
+def version_cli():
+    pass
+
+
+@version_cli.command('version')
+def _show_version():
+    """Display the version of this tool"""
+
+    click.echo('v{}'.format(__version__))
+
+
+cli = click.CommandCollection(sources=[profile_cli, login_cli, version_cli])
 
 
 if __name__ == '__main__':
