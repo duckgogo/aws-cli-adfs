@@ -5,7 +5,6 @@ import re
 from urllib.parse import urlparse
 
 import boto.sts
-import boto.s3
 from bs4 import BeautifulSoup
 import click
 import requests
@@ -244,7 +243,7 @@ def parse_assertion(profiles, assertion):
     return aws_roles, denied_roles, allowed_roles, token
 
 
-def login(
+def login_(
         profiles,
         idp_entry_url,
         idp_username,
