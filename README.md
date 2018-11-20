@@ -32,7 +32,7 @@ IDP Role ARN:  arn:aws-cn:iam::111111111111:role/ADFS-CNAdmin
 IDP Session Duration(in seconds) [3600]: 
 AWS Region: cn-north-1
 Output Format [json]:
-<font color=green>Done.</font>
+Done.
 ```
 
 #### List your profiles
