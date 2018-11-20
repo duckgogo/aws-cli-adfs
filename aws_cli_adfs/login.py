@@ -243,7 +243,7 @@ def parse_assertion(profiles, assertion):
     return aws_roles, denied_roles, allowed_roles, token
 
 
-def login_(
+def login(
         profiles,
         idp_entry_url,
         idp_username,
