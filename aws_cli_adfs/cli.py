@@ -121,7 +121,7 @@ def _create():
 
     aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
     aws_adfs_profiles = aws_adfs_conf['profiles']
-    profile_name = click.prompt('Profile name')
+    profile_name = click.prompt('Profile Name')
     if profile_name in aws_adfs_profiles.keys():
         click.secho(
             'Profile {} has been created'.format(profile_name),
