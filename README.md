@@ -25,7 +25,7 @@ $ aws-adfs profile create
 Example:
 ```shell
 $ aws-adfs profile create
-Profile name:  cn-prod
+Profile Name:  cn-prod
 IDP Entry Url:  https://login.your-ad-server.com/adfs/ls/idpInitiatedSignOn.aspx?loginToRp=urn:amazon:webservices:cn-north-1
 IDP Username:  duck@gogo.com
 IDP Role ARN:  arn:aws-cn:iam::111111111111:role/ADFS-CNAdmin
