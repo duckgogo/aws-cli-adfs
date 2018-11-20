@@ -71,7 +71,7 @@ def welcome():
         elif 0 <= now.hour < 6:
             click.secho(
                 'Hi {}, it\'s very late now,'
-                ' please take good care about yourself!'.format(
+                ' please take good care of yourself!'.format(
                     user
                 ),
                 fg='red'

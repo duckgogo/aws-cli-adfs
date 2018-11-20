@@ -1,4 +1,4 @@
 .idea/
-aws_cli_adfs.egg-info/
+*.egg-info/
 build/
 dist/
