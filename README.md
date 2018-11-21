@@ -7,6 +7,7 @@ Login to AWS CLI using Active Directory Federation Services
 Git clone this repo, then execute
 ```shell
 $ cd aws-cli-adfs
+$ git checkout develop-0.1.0
 $ pip install .
 ```
 
