@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name='aws-adfs',
+    name='awscli-adfs',
     version='0.1.0',
     author='duckgogo',
     author_email='zengjx92@hotmail.com',
@@ -13,7 +13,6 @@ setup(
     install_requires=[
         'awscli',
         'beautifulsoup4',
-        'boto',
         'Click',
         'configparser',
         'requests',
