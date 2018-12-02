@@ -4,7 +4,7 @@ setup(
     name='awscli-adfs',
     version='0.1.0',
     author='duckgogo',
-    author_email='zengjx92@hotmail.com',
+    author_email='zeng.jianxin@foxmail.com',
     description='Login to AWS CLI using Active Directory Federation Services.',
     py_modules=['aws_cli_adfs'],
     packages=['aws_cli_adfs'],
