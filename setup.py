@@ -13,6 +13,7 @@ setup(
     install_requires=[
         'awscli',
         'beautifulsoup4',
+        'boto',
         'Click',
         'configparser',
         'requests',
