@@ -10,6 +10,10 @@ $ cd aws-cli-adfs
 $ git checkout develop-0.1.0
 $ pip install .
 ```
+or install with
+```shell
+pip install awscli-adfs
+```
 
 ## Usage
 
