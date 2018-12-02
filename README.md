@@ -1,6 +1,8 @@
 # aws-cli-adfs
 Login to AWS CLI using Active Directory Federation Services
 
+## Prerequisite
+python version >= 3.5
 
 ## Installing
 
