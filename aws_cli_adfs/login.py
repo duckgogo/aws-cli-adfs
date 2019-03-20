@@ -144,7 +144,7 @@ def get_saml_resp(profiles, idp_entry_url, idp_username, save_password):
             mfa_payload['ChallengeQuestionAnswer'] = mfa_code
         else:
             click.secho(
-                'A notification may have been sent to your mobile device.'
+                'A notification has been sent to your mobile device.'
                 ' Please respond to continue',
                 fg='yellow'
             )
