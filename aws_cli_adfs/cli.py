@@ -1,16 +1,17 @@
 import click
 import sys
+from urllib.parse import urlparse
 
 from .__init__ import __version__
 from .constants import *
-from .login import login
+from .login import adfs_login
 from .utils import *
 
 from .constants import DEFAULT_IDP_SESSION_DURATION, DEFAULT_OUTPUT_FORMAT
 
 
 # the cli is consist of three groups:
-# profile management  part, login part and version part
+# profile management part, login part and version part
 
 
 # profile management part
@@ -28,15 +29,15 @@ def profile():
     pass
 
 
-def _exit_if_no_profile(aws_adfs_config):
+def exit_if_no_profile(aws_adfs_config):
 
     aws_adfs_profiles = aws_adfs_config['profiles']
     if not aws_adfs_profiles:
-        _ls_profiles()
+        ls_profiles()
         sys.exit(-1)
 
 
-def _exit_if_no_default_profile(profile_names, default_profile):
+def exit_if_no_profile_is_provided(profile_names, default_profile):
 
     if not (profile_names or default_profile):
         click.echo('Default profile is not set.')
@@ -48,7 +49,7 @@ def _exit_if_no_default_profile(profile_names, default_profile):
         sys.exit(-1)
 
 
-def _ls_profiles():
+def ls_profiles():
     """list all profiles"""
 
     aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
@@ -71,7 +72,7 @@ def _ls_profiles():
         )
 
 
-def _ls_profiles_if_wrong_names(wrong_profile_names):
+def ls_profiles_if_profile_names_are_wrong(wrong_profile_names):
 
     if wrong_profile_names:
         click.secho(
@@ -80,24 +81,24 @@ def _ls_profiles_if_wrong_names(wrong_profile_names):
             ),
             fg='red'
         )
-        _ls_profiles()
+        ls_profiles()
 
 
 @profile.command('ls')
-def _ls():
+def ls():
     """List all profiles"""
 
-    _ls_profiles()
+    ls_profiles()
 
 
 @profile.command('show')
 @click.argument('profile-names', nargs=-1)
-def _show(profile_names):
+def show(profile_names):
     """Show details about profile(s)"""
 
     aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
     aws_adfs_profiles = aws_adfs_conf['profiles']
-    _exit_if_no_profile(aws_adfs_conf)
+    exit_if_no_profile(aws_adfs_conf)
     wrong_profile_names = list()
     for name in profile_names:
         if name in aws_adfs_profiles.keys():
@@ -112,11 +113,11 @@ def _show(profile_names):
             )
         else:
             wrong_profile_names.append(name)
-    _ls_profiles_if_wrong_names(wrong_profile_names)
+    ls_profiles_if_profile_names_are_wrong(wrong_profile_names)
 
 
 @profile.command('create')
-def _create():
+def create():
     """Create a profile"""
 
     aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
@@ -157,14 +158,14 @@ def _create():
 
 @profile.command('update')
 @click.argument('profile-names', nargs=-1)
-def _update(profile_names):
+def update(profile_names):
     """Update profile(s)"""
 
     aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
-    _exit_if_no_profile(aws_adfs_conf)
+    exit_if_no_profile(aws_adfs_conf)
     aws_adfs_profiles = aws_adfs_conf['profiles']
     default_profile = aws_adfs_conf['default-profile']
-    _exit_if_no_default_profile(profile_names, default_profile)
+    exit_if_no_profile_is_provided(profile_names, default_profile)
     profile_names = profile_names or [default_profile]
     wrong_profile_names = list()
     succeed_updates = list()
@@ -205,23 +206,23 @@ def _update(profile_names):
         click.secho(
             'Profile(s) "{}" {} been updated'.format(
                 '", "'.join(succeed_updates),
-                'has' if succeed_updates else 'have'
+                'has' if len(succeed_updates) > 1 else 'have'
             ),
             fg='green'
         )
-    _ls_profiles_if_wrong_names(wrong_profile_names)
+    ls_profiles_if_profile_names_are_wrong(wrong_profile_names)
 
 
 @profile.command('delete')
 @click.argument('profile-names', nargs=-1)
-def _delete(profile_names):
+def delete(profile_names):
     """Delete profile(s)"""
 
     aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
-    _exit_if_no_profile(aws_adfs_conf)
+    exit_if_no_profile(aws_adfs_conf)
     aws_adfs_profiles = aws_adfs_conf['profiles']
     default_profile = aws_adfs_conf['default-profile']
-    _exit_if_no_default_profile(profile_names, default_profile)
+    exit_if_no_profile_is_provided(profile_names, default_profile)
     profile_names = profile_names or [default_profile]
     sure_to_delete = click.confirm(
         'Are you sure you want to delete profile(s): "{}"'.format(
@@ -265,26 +266,26 @@ def _delete(profile_names):
                 'has' if deleted_profile_names else 'have'
             )
         )
-    _ls_profiles_if_wrong_names(wrong_profile_names)
+    ls_profiles_if_profile_names_are_wrong(wrong_profile_names)
 
 
 @profile.command('default')
 @click.argument('profile-name', required=False)
-def _default(profile_name):
+def default(profile_name):
     """Show or set the default profile"""
 
     aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
-    _exit_if_no_profile(aws_adfs_conf)
+    exit_if_no_profile(aws_adfs_conf)
     aws_adfs_profiles = aws_adfs_conf['profiles']
     default_profile = aws_adfs_conf['default-profile']
-    _exit_if_no_default_profile(profile_name, default_profile)
+    exit_if_no_profile_is_provided(profile_name, default_profile)
     if not profile_name:
         click.echo('Your default profile is: "{}"'.format(default_profile))
         return
 
     if profile_name not in aws_adfs_profiles.keys():
         click.secho('Wrong profile name!', fg='red')
-        _ls_profiles()
+        ls_profiles()
         sys.exit(-1)
 
     # set default profile in adfs config file
@@ -308,13 +309,13 @@ def _default(profile_name):
 
 @profile.command('expire-at')
 @click.argument('profile-names', nargs=-1)
-def _expire_at(profile_names):
-    """Show the expiration time of profile(s)"""
+def expire_at(profile_names):
+    """Show the expire time of profile(s)"""
 
     aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
-    _exit_if_no_profile(aws_adfs_conf)
+    exit_if_no_profile(aws_adfs_conf)
     default_profile = aws_adfs_conf['default-profile']
-    _exit_if_no_default_profile(profile_names, default_profile)
+    exit_if_no_profile_is_provided(profile_names, default_profile)
     profile_names = profile_names or [default_profile]
     aws_credentials = read_aws_credentials(AWS_CREDENTIALS_FILE)
     wrong_profile_names = list()
@@ -322,27 +323,27 @@ def _expire_at(profile_names):
         if profile_name not in aws_adfs_conf['profiles']:
             wrong_profile_names.append(profile_name)
         elif aws_credentials.has_section(profile_name):
-            expiration = aws_credentials[profile_name].get('expiration')
-            if expiration:
+            expire_time = aws_credentials[profile_name].get('expire-at')
+            if expire_time:
                 click.echo(
-                    'Profile "{}" expire at "{}".'.format(
+                    'Profile "{}" expires at "{}".'.format(
                         profile_name,
-                        expiration
+                        expire_time
                     )
                 )
             else:
                 click.echo(
-                    'Expiration time of profile "{}" is not recorded'.format(
+                    'Expire time of profile "{}" is not recorded'.format(
                         profile_name
                     )
                 )
         else:
             click.echo(
-                'You have never login with profile: "{}"'.format(
+                'You never logged in with profile: "{}"'.format(
                     profile_name
                 )
             )
-    _ls_profiles_if_wrong_names(wrong_profile_names)
+    ls_profiles_if_profile_names_are_wrong(wrong_profile_names)
 
 
 # login part
@@ -356,14 +357,14 @@ def login_cli():
 @login_cli.command('login')
 @click.option('--save-password', flag_value=True, default=False)
 @click.argument('profile-names', required=False, nargs=-1)
-def _login(save_password, profile_names):
+def login(save_password, profile_names):
     """Login with profile(s)"""
 
     aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
-    _exit_if_no_profile(aws_adfs_conf)
+    exit_if_no_profile(aws_adfs_conf)
     default_profile = aws_adfs_conf['default-profile']
     profiles = aws_adfs_conf['profiles']
-    _exit_if_no_default_profile(profile_names, default_profile)
+    exit_if_no_profile_is_provided(profile_names, default_profile)
 
     grouped_profiles = dict()
     wrong_profile_names = list()
@@ -372,16 +373,19 @@ def _login(save_password, profile_names):
         if profile_name not in aws_adfs_conf['profiles']:
             wrong_profile_names.append(profile_name)
             continue
-        _profile = profiles[profile_name]
-        key = (_profile['idp_entry_url'], _profile['idp_username'])
+        profile = profiles[profile_name]
+        key = (
+            profile['idp_entry_url'],
+            profile['idp_username']
+        )
         if key not in grouped_profiles:
             grouped_profiles[key] = dict()
-        grouped_profiles[key][profile_name] = _profile
+        grouped_profiles[key][profile_name] = profile
 
     for key, profiles in grouped_profiles.items():
-        login(profiles, *key, save_password)
+        adfs_login(profiles, *key, save_password)
 
-    _ls_profiles_if_wrong_names(wrong_profile_names)
+    ls_profiles_if_profile_names_are_wrong(wrong_profile_names)
 
 
 @click.group()
@@ -390,7 +394,7 @@ def version_cli():
 
 
 @version_cli.command('version')
-def _show_version():
+def show_version():
     """Display the version of this tool"""
 
     click.echo('v{}'.format(__version__))
