@@ -51,12 +51,11 @@ def get_saml_resp(profiles, idp_entry_url, idp_username, save_password):
     entry_soup = BeautifulSoup(entry_resp.text, 'html.parser')
 
     # login
-    # login url
     login_url = entry_resp.url
     for input_tag in entry_soup.find_all(re.compile('(FORM|form)')):
         action = input_tag.get('action')
         login_id = input_tag.get('id')
-        if action and login_id == 'loginForm':
+        if action and login_id in ('loginForm', 'idpForm'):
             parsed_url = urlparse(idp_entry_url)
             login_url = '{}://{}{}'.format(
                 parsed_url.scheme,
@@ -109,7 +108,9 @@ def get_saml_resp(profiles, idp_entry_url, idp_username, save_password):
                 fg='red'
             )
             aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
-            for profile_name in profiles.keys():
+            for profile_name, profile in profiles.items():
+                if profile.get('password'):
+                    del profiles[profile_name]['password']
                 if aws_adfs_conf['profiles'][profile_name].get('password'):
                     del aws_adfs_conf['profiles'][profile_name]['password']
             save_aws_adfs_config(AWS_ADFS_CONFIG_FILE, aws_adfs_conf)
@@ -130,7 +131,7 @@ def get_saml_resp(profiles, idp_entry_url, idp_username, save_password):
         save_aws_adfs_config(AWS_ADFS_CONFIG_FILE, aws_adfs_conf)
 
     if 'SAMLResponse' in login_resp_form:
-        saml_resp = login_resp_form['value']
+        saml_resp = login_resp_form['SAMLResponse']
     # if mfa is enabled
     else:
         mfa_url = login_resp.url
@@ -143,7 +144,7 @@ def get_saml_resp(profiles, idp_entry_url, idp_username, save_password):
             mfa_payload['ChallengeQuestionAnswer'] = mfa_code
         else:
             click.secho(
-                'A notification may has been sent to your mobile device.'
+                'A notification may have been sent to your mobile device.'
                 ' Please respond to continue',
                 fg='yellow'
             )
