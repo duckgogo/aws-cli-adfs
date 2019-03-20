@@ -9,7 +9,6 @@ python version >= 3.5
 Git clone this repo, then execute
 ```shell
 $ cd aws-cli-adfs
-$ git checkout develop-0.1.0
 $ pip install .
 ```
 or install with
