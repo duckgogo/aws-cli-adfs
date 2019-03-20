@@ -9,5 +9,5 @@ AWS_ADFS_CONFIG_FILE = os.path.join(DOT_AWS, 'aws-adfs.toml')
 AWS_ADFS_LOG_FILE = os.path.join(DOT_AWS, 'aws-adfs.log')
 
 # profile defaults
-DEFAULT_IDP_SESSION_DURATION = 3600
+DEFAULT_IDP_SESSION_DURATION = 43200
 DEFAULT_OUTPUT_FORMAT = 'json'
