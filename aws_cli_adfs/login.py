@@ -220,7 +220,7 @@ def parse_saml_resp(profiles, saml_resp):
             )
             aws_credentials.set(
                 profile_,
-                'expiration',
+                'expire-at',
                 token.credentials.expiration
             )
             aws_credentials.set(
