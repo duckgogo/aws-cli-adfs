@@ -1,6 +1,8 @@
 import click
+import re
 import sys
-from urllib.parse import urlparse
+from urllib import parse
+from urllib.error import URLError
 
 from .__init__ import __version__
 from .constants import *
@@ -84,6 +86,14 @@ def ls_profiles_if_profile_names_are_wrong(wrong_profile_names):
         ls_profiles()
 
 
+def is_valid_idp_entry_url(idp_entry_url):
+    try:
+        is_valid = 'loginToRp' in parse.parse_qs(parse.urlparse(idp_entry_url).query)
+        return is_valid
+    except URLError:
+        return False
+
+
 @profile.command('ls')
 def ls():
     """List all profiles"""
@@ -122,6 +132,7 @@ def create():
 
     aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
     aws_adfs_profiles = aws_adfs_conf['profiles']
+    click.secho('Creating profile, press "Ctrl + C" to abort', fg='yellow')
     profile_name = click.prompt('Profile Name')
     if profile_name in aws_adfs_profiles.keys():
         click.secho(
@@ -131,9 +142,12 @@ def create():
         click.echo('You can update it or try to create a new one.')
         sys.exit(-1)
     aws_adfs_profiles[profile_name] = dict()
-    aws_adfs_profiles[profile_name]['idp_entry_url'] = click.prompt(
-        'IDP Entry Url'
-    )
+    while True:
+        idp_entry_url = click.prompt('IDP Entry Url')
+        if is_valid_idp_entry_url(idp_entry_url):
+            break
+        click.secho('Invalid IDP entry url!', fg='red')
+    aws_adfs_profiles[profile_name]['idp_entry_url'] = idp_entry_url
     aws_adfs_profiles[profile_name]['idp_username'] = click.prompt(
         'IDP Username'
     )
@@ -173,11 +187,17 @@ def update(profile_names):
         if profile_name not in aws_adfs_profiles.keys():
             wrong_profile_names.append(profile_name)
             continue
-        click.secho('Updating profile: "{}"'.format(profile_name), fg='yellow')
-        aws_adfs_profiles[profile_name]['idp_entry_url'] = click.prompt(
-            'IDP Entry Url',
-            default=aws_adfs_profiles[profile_name]['idp_entry_url']
-        )
+        click.secho('Updating profile: "{}", '
+            'press "Ctrl + C" to abort'.format(profile_name), fg='yellow')
+        while True:
+            idp_entry_url = click.prompt(
+                'IDP Entry Url',
+                default=aws_adfs_profiles[profile_name]['idp_entry_url']
+            )
+            if is_valid_idp_entry_url(idp_entry_url):
+                break
+            click.secho('Invalid IDP entry url!', fg='red')
+        aws_adfs_profiles[profile_name]['idp_entry_url'] = idp_entry_url
         aws_adfs_profiles[profile_name]['idp_username'] = click.prompt(
             'IDP Username',
             default=aws_adfs_profiles[profile_name]['idp_username']
