@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+click = "*"
+toml = "*"
+requests = "*"
+"beautifulsoup4" = "*"
+awscli = "*"
+boto = "*"
+configparser = "*"
+
+[dev-packages]
+"flake8" = "*"
+awscli-adfs = {editable = true, path = "."}
+
+[requires]
+python_version = "3.7"

@@ -13,14 +13,12 @@ from xml.etree import ElementTree
 
 from .constants import *
 from .exceptions import *
-from .log import create_logger
+from .log import logger
 from .utils import *
 
 
-logger = create_logger()
-
-
-def search_for_principal_arn(_profile, root):
+def search_for_principal_arn(profile, root):
+    """search for principle arn"""
 
     idp_principal_arn = ''
     aws_roles = list()
@@ -36,29 +34,28 @@ def search_for_principal_arn(_profile, root):
                 principal_arn = chunks[0]
                 role_arn = chunks[1]
 
-                if _profile['idp_role_arn'] == role_arn:
+                if profile['idp_role_arn'] == role_arn:
                     idp_principal_arn = principal_arn
                     break
                 aws_roles.append(role_arn)
     return idp_principal_arn, aws_roles
 
 
-def get_assertion(
-        profiles,
-        idp_entry_url,
-        idp_username,
-        save_password,
-        from_saved_password=False
-):
+def get_saml_resp(profiles, idp_entry_url, idp_username, save_password):
+    """get saml response"""
 
     session = requests.Session()
-    start_resp = session.get(idp_entry_url, verify=True)
-    start_soup = BeautifulSoup(start_resp.text, 'html.parser')
-    login_url = start_resp.url
-    for input_tag in start_soup.find_all(re.compile('(FORM|form)')):
+
+    # idp entry
+    entry_resp = session.get(idp_entry_url, verify=True)
+    entry_soup = BeautifulSoup(entry_resp.text, 'html.parser')
+
+    # login
+    login_url = entry_resp.url
+    for input_tag in entry_soup.find_all(re.compile('(FORM|form)')):
         action = input_tag.get('action')
         login_id = input_tag.get('id')
-        if action and login_id == 'loginForm':
+        if action and login_id in ('loginForm', 'idpForm'):
             parsed_url = urlparse(idp_entry_url)
             login_url = '{}://{}{}'.format(
                 parsed_url.scheme,
@@ -66,20 +63,18 @@ def get_assertion(
                 action
             )
     login_payload = dict()
-    password = ''
-    for _profile in profiles.values():
-        password = _profile.get('password')
+
+    # get password
+    for profile in profiles.values():
+        password = profile.get('password')
         if password:
             break
-    if not password or from_saved_password:
-        password = click.prompt(
-            'Password',
-            hide_input=True
-        )
+    if not password:
+        password = click.prompt('Password', hide_input=True)
         from_saved_password = False
     else:
         from_saved_password = True
-    for input_tag in start_soup.find_all(re.compile('(INPUT|input)')):
+    for input_tag in entry_soup.find_all(re.compile('(INPUT|input)')):
         name = input_tag.get('name', '')
         value = input_tag.get('value', '')
         if 'user' in name.lower() or 'email' in name.lower():
@@ -88,171 +83,169 @@ def get_assertion(
             login_payload[name] = password
         else:
             login_payload[name] = value
-    login_payload['AuthMethod'] = 'FormsAuthentication'
+
+    # send the login request
     login_resp = session.post(
         login_url,
         data=login_payload,
         verify=True
     )
-    mfa_url = login_resp.url
     login_soup = BeautifulSoup(login_resp.text, 'html.parser')
-    mfa_payload = dict()
+    login_resp_form = dict()
     for input_tag in login_soup.find_all(re.compile('(INPUT|input)')):
         name = input_tag.get('name', '')
         value = input_tag.get('value', '')
-        mfa_payload[name] = value
+        login_resp_form[name] = value
 
-    if 'ChallengeQuestionAnswer' in mfa_payload:
-        if save_password:
+    # wrong password
+    if any(['pass' in key for key in map(
+            lambda x: x.lower(),
+            login_resp_form.keys()
+    )]):
+        if from_saved_password:
+            click.secho(
+                'The password you have saved is invalid now!',
+                fg='red'
+            )
             aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
-            for profile_name in profiles.keys():
-                aws_adfs_conf['profiles'][profile_name]['password'] = password
+            for profile_name, profile in profiles.items():
+                if profile.get('password'):
+                    del profiles[profile_name]['password']
+                if aws_adfs_conf['profiles'][profile_name].get('password'):
+                    del aws_adfs_conf['profiles'][profile_name]['password']
             save_aws_adfs_config(AWS_ADFS_CONFIG_FILE, aws_adfs_conf)
-        mfa_code = click.prompt('MFA Code')
-        mfa_payload['ChallengeQuestionAnswer'] = mfa_code
-        mfa_payload['AuthMethod'] = 'TOTPAuthenticationProvider'
-    elif from_saved_password:
-        click.secho('The password you have saved is invalid now!', fg='red')
+            return get_saml_resp(
+                profiles,
+                idp_entry_url,
+                idp_username,
+                True
+            )
+        else:
+            raise WrongPasswordException()
+
+    # save password
+    if save_password:
         aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
         for profile_name in profiles.keys():
-            if aws_adfs_conf['profiles'][profile_name].get('password'):
-                del aws_adfs_conf['profiles'][profile_name]['password']
+            aws_adfs_conf['profiles'][profile_name]['password'] = password
         save_aws_adfs_config(AWS_ADFS_CONFIG_FILE, aws_adfs_conf)
-        return get_assertion(
-            profiles,
-            idp_entry_url,
-            idp_username,
-            True,
-            True
-        )
+
+    if 'SAMLResponse' in login_resp_form:
+        saml_resp = login_resp_form['SAMLResponse']
+    # if mfa is enabled
     else:
-        raise WrongPasswordException()
+        mfa_url = login_resp.url
+        mfa_payload = login_resp_form
 
-    mfa_resp = session.post(
-        mfa_url,
-        data=mfa_payload,
-        verify=True
-    )
-    mfa_soup = BeautifulSoup(mfa_resp.text, 'html.parser')
-    mfa_payload2 = dict()
-    for input_tag in mfa_soup.find_all(re.compile('(INPUT|input)')):
-        name = input_tag.get('name', '')
-        value = input_tag.get('value', '')
-        mfa_payload2[name] = value
+        # if using mfa code
+        using_mfa_code = 'ChallengeQuestionAnswer' in mfa_payload
+        if using_mfa_code:
+            mfa_code = click.prompt('MFA Code')
+            mfa_payload['ChallengeQuestionAnswer'] = mfa_code
+        else:
+            click.secho(
+                'A notification has been sent to your mobile device.'
+                ' Please respond to continue',
+                fg='yellow'
+            )
 
-    mfa_payload2['ChallengeQuestionAnswer'] = mfa_code
-    mfa_payload2['AuthMethod'] = 'TOTPAuthenticationProvider'
-
-    assertion = mfa_payload2.get('SAMLResponse', '')
-    if assertion == '':
-        mfa_resp2 = session.post(
+        # send the mfa request
+        mfa_resp = session.post(
             mfa_url,
-            data=mfa_payload2,
+            data=mfa_payload,
             verify=True
         )
-
-        soup = BeautifulSoup(mfa_resp2.text, 'html.parser')
-        assertion = ''
-
-        for input_tag in soup.find_all('input'):
+        mfa_soup = BeautifulSoup(mfa_resp.text, 'html.parser')
+        for input_tag in mfa_soup.find_all(re.compile('(INPUT|input)')):
             if input_tag.get('name') == 'SAMLResponse':
-                assertion = input_tag.get('value')
-    if not assertion:
-        raise WrongMFACodeException()
-    return assertion
+                saml_resp = input_tag.get('value')
+                break
+        else:
+            if using_mfa_code:
+                raise WrongMFACodeException()
+            else:
+                raise LoginNotApprovedException
+
+    return saml_resp
 
 
-def parse_assertion(profiles, assertion):
+def parse_saml_resp(profiles, saml_resp):
+    """parse saml response"""
 
-    root = ElementTree.fromstring(base64.b64decode(assertion))
+    root = ElementTree.fromstring(base64.b64decode(saml_resp))
     aws_roles = list()
     denied_roles = list()
     allowed_roles = list()
     token = ''
-    for profile_name, _profile in profiles.items():
-        aws_credentials = read_aws_credentials(AWS_CREDENTIALS_FILE)
-        aws_config = read_aws_config(AWS_CONFIG_FILE)
-
-        idp_principal_arn, aws_roles = search_for_principal_arn(_profile, root)
-
+    aws_credentials = read_aws_credentials(AWS_CREDENTIALS_FILE)
+    aws_config = read_aws_config(AWS_CONFIG_FILE)
+    for profile_name, profile in profiles.items():
+        idp_principal_arn, aws_roles = search_for_principal_arn(profile, root)
         if not idp_principal_arn:
-            denied_roles.append((profile_name, _profile['idp_role_arn']))
+            denied_roles.append((profile_name, profile['idp_role_arn']))
             continue
-
+        allowed_roles.append((profile_name, profile['idp_role_arn']))
         conn = boto.sts.connect_to_region(
-            _profile['region'],
+            profile['region'],
             profile_name='default'
         )
         token = conn.assume_role_with_saml(
-            _profile['idp_role_arn'],
+            profile['idp_role_arn'],
             idp_principal_arn,
-            assertion,
+            saml_resp,
             None,
-            _profile['idp_session_duration']
+            profile['idp_session_duration']
         )
         aws_adfs_conf = read_aws_adfs_config(AWS_ADFS_CONFIG_FILE)
         default_profile = aws_adfs_conf['default-profile']
-        _profiles_with_default = [profile_name]
+        profiles_with_default = [profile_name]
         if profile_name == default_profile:
-            _profiles_with_default.append('default')
-        for __profile in _profiles_with_default:
-            if not aws_credentials.has_section(__profile):
-                aws_credentials.add_section(__profile)
+            profiles_with_default.append('default')
+        for profile_ in profiles_with_default:
+            if not aws_credentials.has_section(profile_):
+                aws_credentials.add_section(profile_)
             aws_credentials.set(
-                __profile,
+                profile_,
                 'aws_access_key_id',
                 token.credentials.access_key
             )
             aws_credentials.set(
-                __profile,
+                profile_,
                 'aws_secret_access_key',
                 token.credentials.secret_key
             )
             aws_credentials.set(
-                __profile,
+                profile_,
                 'aws_session_token',
                 token.credentials.session_token
             )
             aws_credentials.set(
-                __profile,
-                'expiration',
+                profile_,
+                'expire-at',
                 token.credentials.expiration
             )
             aws_credentials.set(
-                __profile,
+                profile_,
                 'region',
                 token.credentials.expiration
             )
-            aws_credentials.set(
-                __profile,
-                'region',
-                _profile['region']
-            )
-            if not aws_config.has_section(__profile):
-                aws_config.add_section(__profile)
-            aws_config.set(
-                __profile,
-                'region',
-                _profile['region']
-            )
+            aws_credentials.set(profile_, 'region', profile['region'])
+            if not aws_config.has_section(profile_):
+                aws_config.add_section(profile_)
+            aws_config.set(profile_, 'region', profile['region'])
 
-        save_aws_credentials(AWS_CREDENTIALS_FILE, aws_credentials)
-        save_aws_config(AWS_CONFIG_FILE, aws_config)
-        allowed_roles.append((profile_name, _profile['idp_role_arn']))
+    save_aws_credentials(AWS_CREDENTIALS_FILE, aws_credentials)
+    save_aws_config(AWS_CONFIG_FILE, aws_config)
 
     return aws_roles, denied_roles, allowed_roles, token
 
 
-def login(
-        profiles,
-        idp_entry_url,
-        idp_username,
-        save_password=False
-):
+def adfs_login(profiles, idp_entry_url, idp_username, save_password=False):
+    """login the adfs server"""
 
     click.echo('Hello, {}！'.format(idp_username))
     click.echo(
-        'Login with profile(s): "{}"'.format(
+        'You are logging in with profile(s): "{}"'.format(
             '", "'.join(profiles.keys())
         )
     )
@@ -261,7 +254,7 @@ def login(
     result['timestamp'] = datetime.now().timestamp()
     result['action'] = 'login'
     try:
-        assertion = get_assertion(
+        saml_resp = get_saml_resp(
             profiles,
             idp_entry_url,
             idp_username,
@@ -278,50 +271,39 @@ def login(
         click.secho('Wrong MFA code!', fg='red')
         result['result'] = 'failed'
         result['reason'] = 'wrong mfa code'
-    except RequestException:
-        click.secho(
-            'Your IDP entry is unreachable!',
-            fg='yellow'
-        )
-        click.secho(
-            'Entry url: {}'.format(
-                list(profiles.values())[0]['idp_entry_url']
-            ),
-            fg='yellow'
-        )
+    except LoginNotApprovedException:
+        click.secho('Login not approved!', fg='red')
         result['result'] = 'failed'
-        result['reason'] = 'network problem'
+        result['reason'] = 'login not approved'
+    except RequestException:
+        click.secho('Your IDP entry is unreachable!', fg='yellow')
+        click.secho('Entry url: {}'.format(
+            list(profiles.values())[0]['idp_entry_url']),
+            fg='yellow')
+        result['result'] = 'failed'
+        result['reason'] = 'idp entry is unreachable'
     else:
         (
             aws_roles,
             denied_roles,
             allowed_roles,
             token
-        ) = parse_assertion(profiles, assertion)
-
+        ) = parse_saml_resp(profiles, saml_resp)
         if allowed_roles:
             for role in allowed_roles:
                 click.echo('With profile(s): "{}"'.format(role[0]))
-                click.secho('Login succeed!', fg='green')
-                click.echo(
-                    'Your AKSK will expire at "{}"'.format(
-                        token.credentials.expiration
-                    )
-                )
-
+                click.secho('Login successful!', fg='green')
+                click.echo('Your AKSK will expire at "{}"'
+                           .format(token.credentials.expiration))
         if denied_roles:
             for role in denied_roles:
-                click.echo('On profile "{}"'.format(role[0]))
-                click.secho(
-                    'You are not allowed to assume role: "{}"'.format(
-                        role[1]
-                    ),
-                    fg='red'
-                )
+                click.echo('With profile "{}"'.format(role[0]))
+                click.secho('You are not allowed to assume role: "{}"'
+                            .format(role[1]), fg='red')
 
             click.echo('The roles you are allowed to assume are:')
             for aws_role in aws_roles:
                 click.echo('  -  ' + aws_role)
-        result['result'] = 'succeed'
+        result['result'] = 'successful'
     finally:
         logger.info(json.dumps(result))
