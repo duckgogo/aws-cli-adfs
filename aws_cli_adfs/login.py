@@ -2,7 +2,7 @@ import base64
 from datetime import datetime
 import json
 import re
-from urllib.parse import urlparse
+from urllib import parse
 
 import boto.sts
 from bs4 import BeautifulSoup
@@ -56,15 +56,28 @@ def get_saml_resp(profiles, idp_entry_url, idp_username, save_password):
         action = input_tag.get('action')
         login_id = input_tag.get('id')
         if action and login_id in ('loginForm', 'idpForm'):
-            parsed_url = urlparse(idp_entry_url)
+            parsed_url = parse.urlparse(idp_entry_url)
             login_url = '{}://{}{}'.format(
                 parsed_url.scheme,
                 parsed_url.netloc,
                 action
             )
-    login_payload = dict()
 
     # get password
+    login_payload = dict()
+    password_keyname = ''
+    for input_tag in entry_soup.find_all(re.compile('(INPUT|input)')):
+        name = input_tag.get('name', '')
+        value = input_tag.get('value', '')
+        if 'user' in name.lower() or 'email' in name.lower():
+            login_payload[name] = idp_username
+        elif 'pass' in name.lower():
+            password_keyname = name
+            login_payload[name] = ''
+        else:
+            login_payload[name] = value
+    if not any(['pass' in key.lower() for key in login_payload.keys()]):
+        raise WrongIDPEntryUrlException()
     for profile in profiles.values():
         password = profile.get('password')
         if password:
@@ -74,15 +87,7 @@ def get_saml_resp(profiles, idp_entry_url, idp_username, save_password):
         from_saved_password = False
     else:
         from_saved_password = True
-    for input_tag in entry_soup.find_all(re.compile('(INPUT|input)')):
-        name = input_tag.get('name', '')
-        value = input_tag.get('value', '')
-        if 'user' in name.lower() or 'email' in name.lower():
-            login_payload[name] = idp_username
-        elif 'pass' in name.lower():
-            login_payload[name] = password
-        else:
-            login_payload[name] = value
+    login_payload[password_keyname] = password
 
     # send the login request
     login_resp = session.post(
@@ -135,19 +140,30 @@ def get_saml_resp(profiles, idp_entry_url, idp_username, save_password):
     # if mfa is enabled
     else:
         mfa_url = login_resp.url
+        for input_tag in login_soup.find_all(re.compile('(FORM|form)')):
+            action = input_tag.get('action')
+            login_id = input_tag.get('id')
+            if action and login_id.lower() in ('loginform', 'idpform'):
+                parsed_url = parse.urlparse(idp_entry_url)
+                mfa_url = '{}://{}{}'.format(
+                    parsed_url.scheme,
+                    parsed_url.netloc,
+                    action
+                )
+                
         mfa_payload = login_resp_form
-
         # if using mfa code
-        using_mfa_code = 'ChallengeQuestionAnswer' in mfa_payload
-        if using_mfa_code:
+        if 'ChallengeQuestionAnswer' in mfa_payload:
             mfa_code = click.prompt('MFA Code')
             mfa_payload['ChallengeQuestionAnswer'] = mfa_code
-        else:
+        elif 'AuthMethod' in mfa_payload:
             click.secho(
                 'A notification has been sent to your mobile device.'
                 ' Please respond to continue',
                 fg='yellow'
             )
+        else:
+            raise WrongRelyingPartyException()
 
         # send the mfa request
         mfa_resp = session.post(
@@ -161,9 +177,9 @@ def get_saml_resp(profiles, idp_entry_url, idp_username, save_password):
                 saml_resp = input_tag.get('value')
                 break
         else:
-            if using_mfa_code:
+            if 'ChallengeQuestionAnswer' in mfa_payload:
                 raise WrongMFACodeException()
-            else:
+            elif 'AuthMethod' in mfa_payload:
                 raise LoginNotApprovedException
 
     return saml_resp
@@ -189,6 +205,8 @@ def parse_saml_resp(profiles, saml_resp):
             profile['region'],
             profile_name='default'
         )
+        if not conn:
+            raise WrongAWSRegionException(profile['region'])
         token = conn.assume_role_with_saml(
             profile['idp_role_arn'],
             idp_principal_arn,
@@ -260,6 +278,12 @@ def adfs_login(profiles, idp_entry_url, idp_username, save_password=False):
             idp_username,
             save_password
         )
+        (
+            aws_roles,
+            denied_roles,
+            allowed_roles,
+            token
+        ) = parse_saml_resp(profiles, saml_resp)
     except WrongPasswordException:
         click.secho('Wrong password!', fg='red')
         click.echo('(If you login too often,'
@@ -272,23 +296,33 @@ def adfs_login(profiles, idp_entry_url, idp_username, save_password=False):
         result['result'] = 'failed'
         result['reason'] = 'wrong mfa code'
     except LoginNotApprovedException:
-        click.secho('Login not approved!', fg='red')
+        click.secho('Login is not approved!', fg='red')
         result['result'] = 'failed'
         result['reason'] = 'login not approved'
+    except WrongIDPEntryUrlException:
+        click.secho('Wrong IDP entry url -> {}'.format(idp_entry_url), fg='red')
+        result['result'] = 'failed'
+        result['reason'] = 'wrong IDP entry url'
+    except WrongRelyingPartyException:
+        click.secho(
+            'Wrong relying party -> {}'.format(
+                parse.parse_qs(
+                    parse.urlparse(idp_entry_url).query
+                ).get('loginToRp', [''])[0]
+            ),
+            fg='red'
+        )
+        click.secho('in entry url -> {}'.format(idp_entry_url), fg='red')
+        result['result'] = 'failed'
+        result['reason'] = 'wrong relying party'
+    except WrongAWSRegionException as e:
+        click.secho('Wrong AWS region -> {}'.format(e.region), fg='red')
     except RequestException:
-        click.secho('Your IDP entry is unreachable!', fg='yellow')
-        click.secho('Entry url: {}'.format(
-            list(profiles.values())[0]['idp_entry_url']),
-            fg='yellow')
+        click.secho('Your IDP entry is unreachable!', fg='red')
+        click.secho('Entry url -> {}'.format(idp_entry_url), fg='yellow')
         result['result'] = 'failed'
         result['reason'] = 'idp entry is unreachable'
     else:
-        (
-            aws_roles,
-            denied_roles,
-            allowed_roles,
-            token
-        ) = parse_saml_resp(profiles, saml_resp)
         if allowed_roles:
             for role in allowed_roles:
                 click.echo('With profile(s): "{}"'.format(role[0]))
