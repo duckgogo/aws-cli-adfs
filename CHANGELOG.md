@@ -1,5 +1,9 @@
 # aws-cli-adfs change log
 
+### Version 0.1.3
+
+Improve the adfs login process
+
 ### Version 0.1.2
 
 Support Microsoft Authenticator

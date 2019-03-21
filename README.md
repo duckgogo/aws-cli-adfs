@@ -13,7 +13,7 @@ $ pip install .
 ```
 or install with
 ```shell
-pip install awscli-adfs
+pip install -U awscli-adfs
 ```
 
 ## Usage
