@@ -206,7 +206,22 @@ def parse_saml_resp(profiles, saml_resp):
             profile_name='default'
         )
         if not conn:
-            raise WrongAWSRegionException(profile['region'])
+            if profile['region'].startswith('cn-'):
+                region = 'cn-north-1'
+            elif profile['region'].startswith('eu-'):
+                region = 'eu-west-1'
+            elif profile['region'].startswith('us-'):
+                region = 'us-east-1'
+            elif profile['region'].startswith('ap-'):
+                region = 'ap-southeast-1'
+            else:
+                region = 'eu-west-1'
+            conn = boto.sts.connect_to_region(
+                region,
+                profile_name='default'
+            )
+            if not conn:
+                raise WrongAWSRegionException(profile['region'])
         token = conn.assume_role_with_saml(
             profile['idp_role_arn'],
             idp_principal_arn,
