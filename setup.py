@@ -1,8 +1,10 @@
 from setuptools import setup
 
+from aws_cli_adfs import __version__
+
 setup(
     name='awscli-adfs',
-    version='0.1.5',
+    version=__version__,
     author='duckgogo',
     author_email='zeng.jianxin@foxmail.com',
     url='https://github.com/duckgogo/aws-cli-adfs',
