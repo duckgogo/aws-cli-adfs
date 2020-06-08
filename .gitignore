@@ -3,3 +3,6 @@
 build/
 dist/
 .sonarlint/
+.scannerwork/
+.vscode/
+__pycache__/
