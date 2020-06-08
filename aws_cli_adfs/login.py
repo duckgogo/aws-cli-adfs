@@ -315,8 +315,8 @@ def adfs_login(profiles, idp_entry_url, idp_username, save_password=False):
         click.secho('in entry url -> {}'.format(idp_entry_url), fg='red')
         result['result'] = 'failed'
         result['reason'] = 'wrong relying party'
-    except WrongAWSRegionException as e:
-        click.secho('Wrong AWS region -> {}'.format(e.region), fg='red')
+    except WrongAWSRegionException:
+        click.secho('Either the region does not exist or AWS STS is not enabled in this region!', fg='red')
     except RequestException:
         click.secho('Your IDP entry is unreachable!', fg='red')
         click.secho('Entry url -> {}'.format(idp_entry_url), fg='yellow')
