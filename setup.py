@@ -2,9 +2,10 @@ from setuptools import setup
 
 setup(
     name='awscli-adfs',
-    version='0.1.4',
+    version='0.1.5',
     author='duckgogo',
     author_email='zeng.jianxin@foxmail.com',
+    url='https://github.com/duckgogo/aws-cli-adfs',
     description='Login to AWS CLI using Active Directory Federation Services.',
     py_modules=['aws_cli_adfs'],
     packages=['aws_cli_adfs'],
