@@ -18,6 +18,8 @@ pip install -U awscli-adfs
 
 ## Usage
 
+![usage](./aws-adfs.jpg)
+
 #### Display the version of this tool
 ```shell
 $ aws-adfs version
